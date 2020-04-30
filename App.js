@@ -13,17 +13,17 @@ import {
 import {Colors} from 'react-native/Libraries/NewAppScreen';
 
 import {BleManager} from 'react-native-ble-plx';
+import base64 from 'react-native-base64';
 
 const manager = new BleManager();
 
 const App = () => {
-  const [scanError, setError] = useState(null);
+  const [displayError, setDisplayError] = useState(null);
+  const [deviceMessage, setDeviceMessage] = useState('');
   const [devices, setDevices] = useState([]);
   const [locationEnabled, setLocationEnabled] = useState(false);
   const [bluetoothEnabled, setBluetoothEnabled] = useState(false);
-  const [connectionError, setConnectionError] = useState('');
   const [connectedDevice, setConnectedDevice] = useState(null);
-  const [deviceMessage, setDeviceMessage] = useState('');
 
   const canScan = () => locationEnabled && bluetoothEnabled;
 
@@ -48,7 +48,7 @@ const App = () => {
           setLocationEnabled(false);
         }
       } catch (err) {
-        console.warn(err);
+        setDisplayError(err.message);
       }
     };
 
@@ -63,15 +63,21 @@ const App = () => {
     }, true);
   }, []);
 
+  const disconnect = () => {
+    if (connectedDevice) {
+      manager.cancelDeviceConnection(connectedDevice.id);
+      setConnectedDevice(null);
+    }
+  };
+
   const scan = () => {
     if (canScan()) {
-      setConnectedDevice(null);
-      manager.cancelDeviceConnection();
+      disconnect();
       manager.stopDeviceScan();
 
       manager.startDeviceScan(null, null, (error, device) => {
         if (error) {
-          setError(error);
+          setDisplayError(error);
 
           return;
         }
@@ -83,20 +89,50 @@ const App = () => {
 
   const connect = async device => {
     try {
-      let someDevice = await manager.connectToDevice(device.id);
-      setConnectedDevice(someDevice);
+      disconnect();
 
+      let someDevice = await manager.connectToDevice(device.id);
       manager.stopDeviceScan();
+
+      const deviceWithServices = await this.manager.discoverAllServicesAndCharacteristicsForDevice(
+        someDevice.id,
+      );
+
+      const services = await deviceWithServices.services();
+      for (let i = 0; i < services.length; i++) {
+        const service = services[i];
+        const characteristics = await service.characteristics();
+        for (let j = 0; j < characteristics.length; j++) {
+          const characteristic = characteristics[j];
+          if (characteristic.isWritableWithoutResponse) {
+            someDevice.characteristicForWriting = characteristic;
+          }
+        }
+      }
+
+      setConnectedDevice(someDevice);
     } catch (error) {
-      setConnectionError(error.message);
+      setDisplayError(error.message);
     }
   };
 
   const onMessageChange = message => setDeviceMessage(message);
 
-  const onSendMessagePress = () => {
+  const onSendMessagePress = async () => {
     if (connectedDevice) {
-      console.log(deviceMessage);
+      if (!connectedDevice.characteristicForWriting) {
+        setDisplayError(
+          `Device ${connectedDevice.name} (${
+            connectedDevice.id
+          }) is not writable.`,
+        );
+
+        return;
+      }
+
+      await connectedDevice.characteristicForWriting.writeWithoutResponse(
+        base64.encode(deviceMessage + '\r'),
+      );
     }
   };
 
@@ -116,9 +152,8 @@ const App = () => {
             {canScan() && <Button title="Scan for devices" onPress={scan} />}
           </View>
           <View style={styles.sectionContainer}>
-            {scanError ?? <Text style={styles.sectionTitle}>{scanError}</Text>}
-            {connectionError.length > 0 && (
-              <Text style={styles.sectionTitle}>{connectionError}</Text>
+            {displayError ?? (
+              <Text style={styles.sectionTitle}>{displayError}</Text>
             )}
             {connectedDevice !== null && (
               <Text style={styles.sectionTitle}>
