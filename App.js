@@ -7,6 +7,7 @@ import {
   Text,
   Button,
   PermissionsAndroid,
+  TextInput,
 } from 'react-native';
 
 import {Colors} from 'react-native/Libraries/NewAppScreen';
@@ -20,22 +21,11 @@ const App = () => {
   const [devices, setDevices] = useState([]);
   const [locationEnabled, setLocationEnabled] = useState(false);
   const [bluetoothEnabled, setBluetoothEnabled] = useState(false);
+  const [connectionError, setConnectionError] = useState('');
+  const [connectedDevice, setConnectedDevice] = useState(null);
+  const [deviceMessage, setDeviceMessage] = useState('');
 
   const canScan = () => locationEnabled && bluetoothEnabled;
-
-  const scan = () => {
-    if (canScan()) {
-      manager.startDeviceScan(null, null, (error, device) => {
-        if (error) {
-          setError(error);
-
-          return;
-        }
-
-        setDevices([...devices, device]);
-      });
-    }
-  };
 
   useEffect(() => {
     const requestBluetoothPermissions = async () => {
@@ -73,6 +63,43 @@ const App = () => {
     }, true);
   }, []);
 
+  const scan = () => {
+    if (canScan()) {
+      setConnectedDevice(null);
+      manager.cancelDeviceConnection();
+      manager.stopDeviceScan();
+
+      manager.startDeviceScan(null, null, (error, device) => {
+        if (error) {
+          setError(error);
+
+          return;
+        }
+
+        setDevices([...devices, device]);
+      });
+    }
+  };
+
+  const connect = async device => {
+    try {
+      let someDevice = await manager.connectToDevice(device.id);
+      setConnectedDevice(someDevice);
+
+      manager.stopDeviceScan();
+    } catch (error) {
+      setConnectionError(error.message);
+    }
+  };
+
+  const onMessageChange = message => setDeviceMessage(message);
+
+  const onSendMessagePress = () => {
+    if (connectedDevice) {
+      console.log(deviceMessage);
+    }
+  };
+
   return (
     <SafeAreaView>
       <ScrollView
@@ -86,20 +113,38 @@ const App = () => {
                 : 'Please turn on bluetooth and location on your device.'}
             </Text>
 
-            {canScan() && (
-              <Button title="Scan for devices" onPress={() => scan()} />
+            {canScan() && <Button title="Scan for devices" onPress={scan} />}
+          </View>
+          <View style={styles.sectionContainer}>
+            {scanError ?? <Text style={styles.sectionTitle}>{scanError}</Text>}
+            {connectionError.length > 0 && (
+              <Text style={styles.sectionTitle}>{connectionError}</Text>
+            )}
+            {connectedDevice !== null && (
+              <Text style={styles.sectionTitle}>
+                Connection to {connectedDevice.name} successful!
+              </Text>
             )}
           </View>
-          {scanError ?? (
-            <View style={styles.sectionContainer}>
-              <Text style={styles.sectionTitle}>{scanError}</Text>
-            </View>
-          )}
+
           {devices.map(device => (
             <View style={styles.sectionContainer} key={device.id}>
-              <Text style={styles.sectionTitle}>{device.name}</Text>
+              <Button title={device.name} onPress={() => connect(device)} />
             </View>
           ))}
+
+          <View style={styles.sectionContainer}>
+            {connectedDevice !== null && (
+              <>
+                <TextInput
+                  placeholder="Type here the message to the connected device."
+                  onChangeText={onMessageChange}
+                  defaultValue={''}
+                />
+                <Button title="Send message" onPress={onSendMessagePress} />
+              </>
+            )}
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
