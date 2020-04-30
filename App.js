@@ -119,7 +119,7 @@ const App = () => {
   const onMessageChange = message => setDeviceMessage(message);
 
   const onSendMessagePress = async () => {
-    if (connectedDevice) {
+    if (connectedDevice && connectedDevice.isConnected) {
       if (!connectedDevice.characteristicForWriting) {
         setDisplayError(
           `Device ${connectedDevice.name} (${
@@ -133,6 +133,8 @@ const App = () => {
       await connectedDevice.characteristicForWriting.writeWithoutResponse(
         base64.encode(deviceMessage + '\r'),
       );
+    } else {
+      setDisplayError('Device is not connected!');
     }
   };
 
