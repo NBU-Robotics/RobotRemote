@@ -18,7 +18,7 @@ import base64 from 'react-native-base64';
 const manager = new BleManager();
 
 const App = () => {
-  const [displayError, setDisplayError] = useState(null);
+  const [displayError, setDisplayError] = useState('');
   const [deviceMessage, setDeviceMessage] = useState('');
   const [devices, setDevices] = useState([]);
   const [locationEnabled, setLocationEnabled] = useState(false);
@@ -154,7 +154,7 @@ const App = () => {
             {canScan() && <Button title="Scan for devices" onPress={scan} />}
           </View>
           <View style={styles.sectionContainer}>
-            {displayError ?? (
+            {displayError.length > 0 && (
               <Text style={styles.sectionTitle}>{displayError}</Text>
             )}
             {connectedDevice !== null && (
