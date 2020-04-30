@@ -5,10 +5,11 @@ import {
   ScrollView,
   View,
   Text,
-  StatusBar,
+  Button,
+  PermissionsAndroid,
 } from 'react-native';
 
-import {Header, Colors} from 'react-native/Libraries/NewAppScreen';
+import {Colors} from 'react-native/Libraries/NewAppScreen';
 
 import {BleManager} from 'react-native-ble-plx';
 
@@ -17,10 +18,13 @@ const manager = new BleManager();
 const App = () => {
   const [scanError, setError] = useState(null);
   const [devices, setDevices] = useState([]);
-  const [canScan, setCanScan] = useState(false);
+  const [locationEnabled, setLocationEnabled] = useState(false);
+  const [bluetoothEnabled, setBluetoothEnabled] = useState(false);
 
-  const scanAndConnect = () => {
-    if (canScan) {
+  const canScan = () => locationEnabled && bluetoothEnabled;
+
+  const scan = () => {
+    if (canScan()) {
       manager.startDeviceScan(null, null, (error, device) => {
         if (error) {
           setError(error);
@@ -34,48 +38,71 @@ const App = () => {
   };
 
   useEffect(() => {
+    const requestBluetoothPermissions = async () => {
+      try {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
+          {
+            title: 'Location permission',
+            message:
+              'Robot remote needs location permission in order to use bluetooth.',
+            buttonNeutral: 'Ask Me Later',
+            buttonNegative: 'No',
+            buttonPositive: 'Yes',
+          },
+        );
+
+        if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+          setLocationEnabled(true);
+        } else {
+          setLocationEnabled(false);
+        }
+      } catch (err) {
+        console.warn(err);
+      }
+    };
+
+    requestBluetoothPermissions();
+
     manager.onStateChange(state => {
       if (state === 'PoweredOn') {
-        setCanScan(true);
+        setBluetoothEnabled(true);
       } else {
-        setCanScan(false);
+        setBluetoothEnabled(false);
       }
     }, true);
   }, []);
 
   return (
-    <>
-      <StatusBar barStyle="dark-content" />
-      <SafeAreaView>
-        <ScrollView
-          contentInsetAdjustmentBehavior="automatic"
-          style={styles.scrollView}>
-          <Header />
-          {global.HermesInternal == null ? null : (
-            <View style={styles.engine}>
-              <Text style={styles.footer}>Engine: Hermes</Text>
+    <SafeAreaView>
+      <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        style={styles.scrollView}>
+        <View style={styles.body}>
+          <View style={styles.sectionContainer}>
+            <Text style={styles.sectionTitle}>
+              {canScan()
+                ? 'Bluetooth and location turned on.'
+                : 'Please turn on bluetooth and location on your device.'}
+            </Text>
+
+            {canScan() && (
+              <Button title="Scan for devices" onPress={() => scan()} />
+            )}
+          </View>
+          {scanError ?? (
+            <View style={styles.sectionContainer}>
+              <Text style={styles.sectionTitle}>{scanError}</Text>
             </View>
           )}
-          <View style={styles.body}>
-            <View style={styles.sectionContainer}>
-              <Text style={styles.sectionTitle}>
-                {canScan ? 'Can scan' : 'Hello'}
-              </Text>
+          {devices.map(device => (
+            <View style={styles.sectionContainer} key={device.id}>
+              <Text style={styles.sectionTitle}>{device.name}</Text>
             </View>
-            {scanError ?? (
-              <View style={styles.sectionContainer}>
-                <Text style={styles.sectionTitle}>{scanError}</Text>
-              </View>
-            )}
-            {devices.map(device => (
-              <View style={styles.sectionContainer} key={device.id}>
-                <Text style={styles.sectionTitle}>{device.name}</Text>
-              </View>
-            ))}
-          </View>
-        </ScrollView>
-      </SafeAreaView>
-    </>
+          ))}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
@@ -98,23 +125,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '600',
     color: Colors.black,
-  },
-  sectionDescription: {
-    marginTop: 8,
-    fontSize: 18,
-    fontWeight: '400',
-    color: Colors.dark,
-  },
-  highlight: {
-    fontWeight: '700',
-  },
-  footer: {
-    color: Colors.dark,
-    fontSize: 12,
-    fontWeight: '600',
-    padding: 4,
-    paddingRight: 12,
-    textAlign: 'right',
   },
 });
 
