@@ -66,6 +66,8 @@ const App = () => {
   }, [requestBluetoothPermissions]);
 
   const disconnect = async () => {
+    await requestBluetoothPermissions();
+
     if (connectedDevice) {
       try {
         await manager.cancelDeviceConnection(connectedDevice.id);
@@ -77,9 +79,10 @@ const App = () => {
   };
 
   const scan = async () => {
+    await requestBluetoothPermissions();
+
     if (canUseBluetooth()) {
       await disconnect();
-      manager.stopDeviceScan();
 
       setDevices([]);
 
@@ -96,12 +99,13 @@ const App = () => {
   };
 
   const connect = async device => {
+    await requestBluetoothPermissions();
+
     try {
       await disconnect();
-
-      let someDevice = await manager.connectToDevice(device.id);
       manager.stopDeviceScan();
 
+      let someDevice = await manager.connectToDevice(device.id);
       const deviceWithServices = await this.manager.discoverAllServicesAndCharacteristicsForDevice(
         someDevice.id,
       );
@@ -127,6 +131,8 @@ const App = () => {
   const onMessageChange = message => setDeviceMessage(message);
 
   const onSendMessagePress = async () => {
+    await requestBluetoothPermissions();
+
     if (connectedDevice && connectedDevice.isConnected) {
       if (!connectedDevice.characteristicForWriting) {
         sendErrorMessage(
@@ -138,9 +144,13 @@ const App = () => {
         return;
       }
 
-      await connectedDevice.characteristicForWriting.writeWithoutResponse(
-        base64.encode(deviceMessage + '\r'),
-      );
+      try {
+        await connectedDevice.characteristicForWriting.writeWithoutResponse(
+          base64.encode(deviceMessage + '\r'),
+        );
+      } catch (error) {
+        sendErrorMessage(error.message);
+      }
     } else {
       sendErrorMessage('Device is not connected!');
     }
