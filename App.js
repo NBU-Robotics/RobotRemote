@@ -81,10 +81,9 @@ const App = () => {
   const scan = async () => {
     await requestBluetoothPermissions();
 
+    let scannedDevices = [];
     if (canUseBluetooth()) {
       await disconnect();
-
-      setDevices([]);
 
       manager.startDeviceScan(null, null, (error, device) => {
         if (error) {
@@ -93,9 +92,23 @@ const App = () => {
           return;
         }
 
-        setDevices([...devices, device]);
+        if (scannedDevices.findIndex(dev => dev.id === device.id) < 0) {
+          if (device.name === null) {
+            device.name = device.id;
+          }
+
+          scannedDevices.push(device);
+        }
       });
     }
+
+    await new Promise(() =>
+      setTimeout(() => {
+        manager.stopDeviceScan();
+
+        setDevices(scannedDevices);
+      }, 3000),
+    );
   };
 
   const connect = async device => {
@@ -106,7 +119,7 @@ const App = () => {
       manager.stopDeviceScan();
 
       let someDevice = await manager.connectToDevice(device.id);
-      const deviceWithServices = await this.manager.discoverAllServicesAndCharacteristicsForDevice(
+      const deviceWithServices = await manager.discoverAllServicesAndCharacteristicsForDevice(
         someDevice.id,
       );
 
@@ -174,7 +187,7 @@ const App = () => {
             )}
           </View>
           <View style={styles.sectionContainer}>
-            {connectedDevice !== null && (
+            {canUseBluetooth() && connectedDevice !== null && (
               <>
                 <Text style={styles.sectionTitle}>
                   Connection to {connectedDevice.name} successful!
@@ -184,18 +197,19 @@ const App = () => {
             )}
           </View>
 
-          {devices.map(device => (
-            <View style={styles.sectionContainer} key={device.id}>
-              <Button
-                disabled={connectedDevice !== null}
-                title={device.name}
-                onPress={() => connect(device)}
-              />
-            </View>
-          ))}
+          {canUseBluetooth() &&
+            devices.map(device => (
+              <View style={styles.sectionContainer} key={device.id}>
+                <Button
+                  disabled={connectedDevice !== null}
+                  title={device.name}
+                  onPress={() => connect(device)}
+                />
+              </View>
+            ))}
 
           <View style={styles.sectionContainer}>
-            {connectedDevice !== null && (
+            {canUseBluetooth() && connectedDevice !== null && (
               <>
                 <TextInput
                   placeholder="Type here the message to the connected device."
