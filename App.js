@@ -12,7 +12,7 @@ import {
 
 import {Colors} from 'react-native/Libraries/NewAppScreen';
 
-import BluetoothSerial from 'react-native-bluetooth-serial';
+import BluetoothSerial from 'react-native-bluetooth-serial-next';
 
 const App = () => {
   const [deviceMessage, setDeviceMessage] = useState('');
@@ -52,6 +52,16 @@ const App = () => {
 
     BluetoothSerial.on('error', err => {
       sendErrorMessage(err.message);
+    });
+
+    BluetoothSerial.on('bluetoothEnabled', () => {
+      disconnect();
+      setBluetoothEnabled(true);
+    });
+
+    BluetoothSerial.on('bluetoothDisabled', () => {
+      disconnect();
+      setBluetoothEnabled(false);
     });
   }, [disconnect]);
 

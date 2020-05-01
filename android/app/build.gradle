@@ -191,7 +191,7 @@ dependencies {
         implementation jscFlavor
     }
 
-    compile project(':react-native-bluetooth-serial')
+    compile project(':react-native-bluetooth-serial-next')
 }
 
 // Run this once to be able to run the application with BUCK
