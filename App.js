@@ -165,7 +165,7 @@ const App = () => {
           <View style={styles.sectionContainer}>
             <Text style={styles.sectionTitle}>
               {canUseBluetooth()
-                ? 'Bluetooth and location are turned on.'
+                ? 'Bluetooth is turned on.'
                 : 'Please turn on bluetooth and location on your device.'}
             </Text>
 
