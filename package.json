@@ -14,8 +14,7 @@
     "react": "16.9.0",
     "react-native": "^0.62.0",
     "react-native-base64": "0.0.2",
-    "react-native-ble-plx": "^2.0.0",
-    "react-native-bluetooth-serial-next": "^1.2.3"
+    "react-native-ble-plx": "^2.0.0"
   },
   "devDependencies": {
     "@babel/core": "^7.6.2",

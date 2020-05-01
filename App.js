@@ -8,86 +8,117 @@ import {
   Button,
   TextInput,
   Alert,
+  PermissionsAndroid,
 } from 'react-native';
 
 import {Colors} from 'react-native/Libraries/NewAppScreen';
+import {BleManager} from 'react-native-ble-plx';
+import base64 from 'react-native-base64';
 
-import BluetoothSerial from 'react-native-bluetooth-serial-next';
+const manager = new BleManager();
 
 const App = () => {
   const [deviceMessage, setDeviceMessage] = useState('');
   const [devices, setDevices] = useState([]);
   const [connectedDevice, setConnectedDevice] = useState(null);
   const [bluetoothEnabled, setBluetoothEnabled] = useState(false);
+  const [locationEnabled, setLocationEnabled] = useState(false);
+
+  const canUseBluetooth = () => locationEnabled && bluetoothEnabled;
 
   const sendErrorMessage = message =>
     Alert.alert('Error', message, [{text: 'OK'}], {cancelable: false});
 
-  const disconnect = useCallback(async () => {
+  const requestBluetoothPermissions = useCallback(async () => {
     try {
-      await BluetoothSerial.disconnect();
-      setConnectedDevice(null);
-    } catch (error) {
-      sendErrorMessage(error.message);
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+        {
+          title: 'Location permission',
+          message:
+            'Robot remote needs location permission in order to use bluetooth.',
+          buttonNeutral: 'Ask Me Later',
+          buttonNegative: 'No',
+          buttonPositive: 'Yes',
+        },
+      );
+
+      if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+        setLocationEnabled(true);
+      } else {
+        setLocationEnabled(false);
+      }
+    } catch (err) {
+      sendErrorMessage(err.message);
     }
   }, []);
 
   useEffect(() => {
-    const enable = async () => {
-      try {
-        await BluetoothSerial.enable();
+    requestBluetoothPermissions();
+
+    manager.onStateChange(state => {
+      if (state === 'PoweredOn') {
         setBluetoothEnabled(true);
+      } else {
+        setBluetoothEnabled(false);
+      }
+    }, true);
+  }, [requestBluetoothPermissions]);
+
+  const disconnect = async () => {
+    if (connectedDevice) {
+      try {
+        await manager.cancelDeviceConnection(connectedDevice.id);
+        setConnectedDevice(null);
       } catch (error) {
         sendErrorMessage(error.message);
       }
-    };
-
-    enable();
-  }, []);
-
-  useEffect(() => {
-    BluetoothSerial.on('connectionLost', () => {
-      disconnect();
-    });
-
-    BluetoothSerial.on('error', err => {
-      sendErrorMessage(err.message);
-    });
-
-    BluetoothSerial.on('bluetoothEnabled', () => {
-      disconnect();
-      setBluetoothEnabled(true);
-    });
-
-    BluetoothSerial.on('bluetoothDisabled', () => {
-      disconnect();
-      setBluetoothEnabled(false);
-    });
-  }, [disconnect]);
+    }
+  };
 
   const scan = async () => {
-    try {
-      let scannedDevices = await BluetoothSerial.list();
+    if (canUseBluetooth()) {
+      await disconnect();
+      manager.stopDeviceScan();
 
-      // Set blank device names to their device id
-      for (var dev of scannedDevices) {
-        if (!dev.name || dev.name.trim().length <= 0) {
-          dev.name = String(dev.id);
+      setDevices([]);
+
+      manager.startDeviceScan(null, null, (error, device) => {
+        if (error) {
+          sendErrorMessage(error.message);
+
+          return;
         }
-      }
 
-      if (scannedDevices.length > 0) {
-        setDevices([...scannedDevices]);
-      }
-    } catch (error) {
-      sendErrorMessage(error.message);
+        setDevices([...devices, device]);
+      });
     }
   };
 
   const connect = async device => {
     try {
-      await BluetoothSerial.connect(device.id);
-      setConnectedDevice(device);
+      await disconnect();
+
+      let someDevice = await manager.connectToDevice(device.id);
+      manager.stopDeviceScan();
+
+      const deviceWithServices = await this.manager.discoverAllServicesAndCharacteristicsForDevice(
+        someDevice.id,
+      );
+
+      const services = await deviceWithServices.services();
+      for (let i = 0; i < services.length; i++) {
+        const service = services[i];
+        const characteristics = await service.characteristics();
+        for (let j = 0; j < characteristics.length; j++) {
+          const characteristic = characteristics[j];
+          if (characteristic.isWritableWithoutResponse) {
+            someDevice.characteristicForWriting = characteristic;
+          }
+        }
+      }
+
+      setConnectedDevice(someDevice);
     } catch (error) {
       sendErrorMessage(error.message);
     }
@@ -96,8 +127,20 @@ const App = () => {
   const onMessageChange = message => setDeviceMessage(message);
 
   const onSendMessagePress = async () => {
-    if (connectedDevice && BluetoothSerial.isConnected()) {
-      await BluetoothSerial.write(deviceMessage + '\r');
+    if (connectedDevice && connectedDevice.isConnected) {
+      if (!connectedDevice.characteristicForWriting) {
+        sendErrorMessage(
+          `Device ${connectedDevice.name} (${
+            connectedDevice.id
+          }) is not writable.`,
+        );
+
+        return;
+      }
+
+      await connectedDevice.characteristicForWriting.writeWithoutResponse(
+        base64.encode(deviceMessage + '\r'),
+      );
     } else {
       sendErrorMessage('Device is not connected!');
     }
@@ -111,12 +154,12 @@ const App = () => {
         <View style={styles.body}>
           <View style={styles.sectionContainer}>
             <Text style={styles.sectionTitle}>
-              {bluetoothEnabled
-                ? 'Bluetooth is turned on.'
-                : 'Please turn on bluetooth on your device.'}
+              {canUseBluetooth()
+                ? 'Bluetooth and location are turned on.'
+                : 'Please turn on bluetooth and location on your device.'}
             </Text>
 
-            {bluetoothEnabled && (
+            {canUseBluetooth() && (
               <Button title="Scan for devices" onPress={() => scan()} />
             )}
           </View>
