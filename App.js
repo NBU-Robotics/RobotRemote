@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useState, useCallback} from 'react';
 import {
   SafeAreaView,
   StyleSheet,
@@ -7,6 +7,7 @@ import {
   Text,
   Button,
   TextInput,
+  Alert,
 } from 'react-native';
 
 import {Colors} from 'react-native/Libraries/NewAppScreen';
@@ -14,39 +15,45 @@ import {Colors} from 'react-native/Libraries/NewAppScreen';
 import BluetoothSerial from 'react-native-bluetooth-serial';
 
 const App = () => {
-  const [displayError, setDisplayError] = useState('');
   const [deviceMessage, setDeviceMessage] = useState('');
   const [devices, setDevices] = useState([]);
   const [connectedDevice, setConnectedDevice] = useState(null);
   const [bluetoothEnabled, setBluetoothEnabled] = useState(false);
 
-  const disconnect = async () => {
+  const sendErrorMessage = message =>
+    Alert.alert('Error', message, [{text: 'OK'}], {cancelable: false});
+
+  const disconnect = useCallback(async () => {
     try {
       await BluetoothSerial.disconnect();
       setConnectedDevice(null);
     } catch (error) {
-      setDisplayError(error.message);
+      sendErrorMessage(error.message);
     }
-  };
-
-  const enable = async () => {
-    try {
-      await BluetoothSerial.enable();
-      setBluetoothEnabled(true);
-    } catch (error) {
-      setDisplayError(error.message);
-    }
-  };
+  }, []);
 
   useEffect(() => {
+    const enable = async () => {
+      try {
+        await BluetoothSerial.enable();
+        setBluetoothEnabled(true);
+      } catch (error) {
+        sendErrorMessage(error.message);
+      }
+    };
+
     enable();
+  }, []);
 
-    BluetoothSerial.on('error', err => setDisplayError(err.message));
-
+  useEffect(() => {
     BluetoothSerial.on('connectionLost', () => {
       disconnect();
     });
-  }, []);
+
+    BluetoothSerial.on('error', err => {
+      sendErrorMessage(err.message);
+    });
+  }, [disconnect]);
 
   const scan = async () => {
     try {
@@ -63,18 +70,16 @@ const App = () => {
         setDevices([...scannedDevices]);
       }
     } catch (error) {
-      setDisplayError(error.message);
+      sendErrorMessage(error.message);
     }
   };
 
   const connect = async device => {
     try {
-      disconnect();
-
-      setConnectedDevice(device);
       await BluetoothSerial.connect(device.id);
+      setConnectedDevice(device);
     } catch (error) {
-      setDisplayError(error.message);
+      sendErrorMessage(error.message);
     }
   };
 
@@ -84,7 +89,7 @@ const App = () => {
     if (connectedDevice && BluetoothSerial.isConnected()) {
       await BluetoothSerial.write(deviceMessage + '\r');
     } else {
-      setDisplayError('Device is not connected!');
+      sendErrorMessage('Device is not connected!');
     }
   };
 
@@ -106,19 +111,23 @@ const App = () => {
             )}
           </View>
           <View style={styles.sectionContainer}>
-            {displayError.length > 0 && (
-              <Text style={styles.sectionTitle}>{displayError}</Text>
-            )}
             {connectedDevice !== null && (
-              <Text style={styles.sectionTitle}>
-                Connection to {connectedDevice.name} successful!
-              </Text>
+              <>
+                <Text style={styles.sectionTitle}>
+                  Connection to {connectedDevice.name} successful!
+                </Text>
+                <Button title="Disconnect" onPress={() => disconnect()} />
+              </>
             )}
           </View>
 
           {devices.map(device => (
             <View style={styles.sectionContainer} key={device.id}>
-              <Button title={device.name} onPress={() => connect(device)} />
+              <Button
+                disabled={connectedDevice !== null}
+                title={device.name}
+                onPress={() => connect(device)}
+              />
             </View>
           ))}
 
