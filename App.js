@@ -23,8 +23,14 @@ const App = () => {
   const [connectedDevice, setConnectedDevice] = useState(null);
   const [bluetoothEnabled, setBluetoothEnabled] = useState(false);
   const [locationEnabled, setLocationEnabled] = useState(false);
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [isSending, setIsSending] = useState(false);
 
   const canUseBluetooth = () => locationEnabled && bluetoothEnabled;
+  const canPressButtons = () =>
+    !isDisconnecting && !isScanning && !isConnecting && !isSending;
 
   const sendErrorMessage = message =>
     Alert.alert('Error', message, [{text: 'OK'}], {cancelable: false});
@@ -66,6 +72,8 @@ const App = () => {
   }, [requestBluetoothPermissions]);
 
   const disconnect = async () => {
+    setIsDisconnecting(true);
+
     await requestBluetoothPermissions();
 
     if (connectedDevice) {
@@ -76,14 +84,19 @@ const App = () => {
         sendErrorMessage(error.message);
       }
     }
+
+    setIsDisconnecting(false);
   };
 
   const scan = async () => {
+    setIsScanning(true);
+
     await requestBluetoothPermissions();
 
     let scannedDevices = [];
     if (canUseBluetooth()) {
       await disconnect();
+      setDevices([]);
 
       manager.startDeviceScan(null, null, (error, device) => {
         if (error) {
@@ -107,11 +120,15 @@ const App = () => {
         manager.stopDeviceScan();
 
         setDevices(scannedDevices);
+
+        setIsScanning(false);
       }, 3000),
     );
   };
 
   const connect = async device => {
+    setIsConnecting(true);
+
     await requestBluetoothPermissions();
 
     try {
@@ -137,13 +154,18 @@ const App = () => {
 
       setConnectedDevice(someDevice);
     } catch (error) {
+      setConnectedDevice(null);
       sendErrorMessage(error.message);
     }
+
+    setIsConnecting(false);
   };
 
   const onMessageChange = message => setDeviceMessage(message);
 
   const onSendMessagePress = async () => {
+    setIsSending(true);
+
     await requestBluetoothPermissions();
 
     if (connectedDevice && connectedDevice.isConnected) {
@@ -166,7 +188,10 @@ const App = () => {
       }
     } else {
       sendErrorMessage('Device is not connected!');
+      setConnectedDevice(null);
     }
+
+    setIsSending(false);
   };
 
   return (
@@ -182,44 +207,61 @@ const App = () => {
                 : 'Please turn on bluetooth and location on your device.'}
             </Text>
 
-            {canUseBluetooth() && (
-              <Button title="Scan for devices" onPress={() => scan()} />
+            {canUseBluetooth() && !isScanning && (
+              <Button
+                title="Scan for devices"
+                disabled={!canPressButtons()}
+                onPress={() => scan()}
+              />
             )}
           </View>
-          <View style={styles.sectionContainer}>
-            {canUseBluetooth() && connectedDevice !== null && (
-              <>
-                <Text style={styles.sectionTitle}>
-                  Connection to {connectedDevice.name} successful!
-                </Text>
-                <Button title="Disconnect" onPress={() => disconnect()} />
-              </>
-            )}
-          </View>
+
+          {canUseBluetooth() && (
+            <View style={styles.sectionContainer}>
+              {connectedDevice !== null && (
+                <>
+                  <Text style={styles.sectionTitle}>
+                    Connection to {connectedDevice.name} successful!
+                  </Text>
+                  <Button
+                    disabled={!canPressButtons()}
+                    title="Disconnect"
+                    onPress={() => disconnect()}
+                  />
+                </>
+              )}
+            </View>
+          )}
 
           {canUseBluetooth() &&
             devices.map(device => (
               <View style={styles.sectionContainer} key={device.id}>
                 <Button
-                  disabled={connectedDevice !== null}
+                  disabled={!canPressButtons() || connectedDevice !== null}
                   title={device.name}
                   onPress={() => connect(device)}
                 />
               </View>
             ))}
 
-          <View style={styles.sectionContainer}>
-            {canUseBluetooth() && connectedDevice !== null && (
-              <>
-                <TextInput
-                  placeholder="Type here the message to the connected device."
-                  onChangeText={onMessageChange}
-                  defaultValue={''}
-                />
-                <Button title="Send message" onPress={onSendMessagePress} />
-              </>
-            )}
-          </View>
+          {canUseBluetooth() && (
+            <View style={styles.sectionContainer}>
+              {connectedDevice !== null && (
+                <>
+                  <TextInput
+                    placeholder="Type here the message to the connected device."
+                    onChangeText={onMessageChange}
+                    defaultValue={''}
+                  />
+                  <Button
+                    title="Send message"
+                    disabled={!canPressButtons()}
+                    onPress={onSendMessagePress}
+                  />
+                </>
+              )}
+            </View>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
