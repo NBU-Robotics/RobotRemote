@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import React, {useEffect, useState, useCallback} from 'react';
 import {
   SafeAreaView,
@@ -8,20 +9,28 @@ import {
   Button,
   TextInput,
   Alert,
+  PermissionsAndroid,
+  DeviceEventEmitter,
 } from 'react-native';
 
 import {Colors} from 'react-native/Libraries/NewAppScreen';
 import BluetoothSerial from 'react-native-bluetooth-serial';
+import LocationServicesDialogBox from 'react-native-android-location-services-dialog-box';
 
 const App = () => {
   const [deviceMessage, setDeviceMessage] = useState('');
   const [devices, setDevices] = useState([]);
   const [connectedDevice, setConnectedDevice] = useState(null);
   const [bluetoothEnabled, setBluetoothEnabled] = useState(false);
+  const [locationPermitted, setLocationPermitted] = useState(false);
+  const [locationEnabled, setLocationEnabled] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isSending, setIsSending] = useState(false);
+
+  const canUseBluetooth = () =>
+    locationPermitted && bluetoothEnabled && locationEnabled;
 
   const canPressButtons = () =>
     !isDisconnecting && !isScanning && !isConnecting && !isSending;
@@ -29,7 +38,68 @@ const App = () => {
   const sendErrorMessage = message =>
     Alert.alert('Error', message, [{text: 'OK'}], {cancelable: false});
 
+  const requestLocation = useCallback(async () => {
+    LocationServicesDialogBox.checkLocationServicesIsEnabled({
+      message: 'Enable location services in order to use bluetooth?',
+      ok: 'Yes',
+      cancel: 'No',
+      enableHighAccuracy: false,
+      showDialog: true,
+      openLocationServices: true,
+      preventOutSideTouch: true,
+      preventBackClick: true,
+      providerListener: true,
+    })
+      .then(() => {
+        setLocationEnabled(true);
+      })
+      .catch(() => {
+        setLocationEnabled(false);
+      });
+  }, []);
+
+  const requestLocattionPermissions = useCallback(async () => {
+    try {
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+        {
+          title: 'Location permission',
+          message:
+            'Robot remote needs location permission in order to use bluetooth.',
+          buttonNeutral: 'Ask Me Later',
+          buttonNegative: 'No',
+          buttonPositive: 'Yes',
+        },
+      );
+
+      if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+        setLocationPermitted(true);
+      } else {
+        setLocationPermitted(false);
+      }
+    } catch (err) {
+      sendErrorMessage(err.message);
+    }
+  }, []);
+
   useEffect(() => {
+    const requestServices = async () => {
+      await requestLocattionPermissions();
+      await requestLocation();
+
+      DeviceEventEmitter.addListener('locationProviderStatusChange', function(
+        status,
+      ) {
+        if (status.enabled) {
+          setLocationEnabled(true);
+        } else {
+          setLocationEnabled(false);
+        }
+      });
+    };
+
+    requestServices();
+
     const enable = async () => {
       try {
         await BluetoothSerial.enable();
@@ -44,10 +114,14 @@ const App = () => {
     BluetoothSerial.on('error', err => {
       sendErrorMessage(err.message);
     });
-  }, []);
+
+    return () => LocationServicesDialogBox.stopListener();
+  }, [requestLocattionPermissions, requestLocation]);
 
   const disconnect = useCallback(async () => {
     setIsDisconnecting(true);
+
+    await requestLocattionPermissions();
 
     try {
       await BluetoothSerial.disconnect();
@@ -57,7 +131,7 @@ const App = () => {
     }
 
     setIsDisconnecting(false);
-  }, []);
+  }, [requestLocattionPermissions]);
 
   useEffect(() => {
     BluetoothSerial.on('connectionLost', () => {
@@ -78,23 +152,34 @@ const App = () => {
   const scan = async () => {
     setIsScanning(true);
 
-    if (bluetoothEnabled) {
+    await requestLocattionPermissions();
+
+    if (canUseBluetooth()) {
       await disconnect();
 
       try {
         let scannedDevices = await BluetoothSerial.list();
         let unpaired = await BluetoothSerial.discoverUnpairedDevices();
 
+        scannedDevices = [...scannedDevices, ...unpaired];
+
         // Set blank device names to their device id
-        for (var dev of scannedDevices) {
+        for (let dev of scannedDevices) {
           if (!dev.name || dev.name.trim().length <= 0) {
             dev.name = String(dev.id);
           }
         }
 
+        let devicesToAdd = [];
         if (scannedDevices.length > 0) {
-          setDevices([...scannedDevices]);
+          for (let dev of scannedDevices) {
+            if (!devicesToAdd.find(el => el.id === dev.id)) {
+              devicesToAdd.push(dev);
+            }
+          }
         }
+
+        setDevices(devicesToAdd);
       } catch (error) {
         sendErrorMessage(error.message);
       }
@@ -105,6 +190,8 @@ const App = () => {
 
   const connect = async device => {
     setIsConnecting(true);
+
+    await requestLocattionPermissions();
 
     try {
       await BluetoothSerial.connect(device.id);
@@ -138,12 +225,12 @@ const App = () => {
         <View style={styles.body}>
           <View style={styles.sectionContainer}>
             <Text style={styles.sectionTitle}>
-              {bluetoothEnabled
-                ? 'Bluetooth is turned on.'
-                : 'Please turn on bluetooth on your device.'}
+              {canUseBluetooth()
+                ? 'Bluetooth and location are turned on.'
+                : 'Please turn on bluetooth and location on your device.'}
             </Text>
 
-            {bluetoothEnabled && (
+            {canUseBluetooth() && (
               <Button
                 title="Scan for devices"
                 disabled={!canPressButtons()}
@@ -152,7 +239,7 @@ const App = () => {
             )}
           </View>
 
-          {bluetoothEnabled && (
+          {canUseBluetooth() && (
             <View style={styles.sectionContainer}>
               {connectedDevice !== null && (
                 <>
@@ -169,7 +256,7 @@ const App = () => {
             </View>
           )}
 
-          {bluetoothEnabled &&
+          {canUseBluetooth() &&
             devices.map(device => (
               <View style={styles.sectionContainer} key={device.id}>
                 <Button
@@ -180,7 +267,7 @@ const App = () => {
               </View>
             ))}
 
-          {bluetoothEnabled && (
+          {canUseBluetooth() && (
             <View style={styles.sectionContainer}>
               {connectedDevice !== null && (
                 <>

@@ -13,6 +13,7 @@
   "dependencies": {
     "react": "16.9.0",
     "react-native": "^0.62.0",
+    "react-native-android-location-services-dialog-box": "^2.8.2",
     "react-native-base64": "0.0.2",
     "react-native-bluetooth-serial": "git+https://github.com/chico/react-native-bluetooth-serial.git#v1.0.0-rc2"
   },
