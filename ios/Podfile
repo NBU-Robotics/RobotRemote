@@ -35,7 +35,6 @@ target 'RobotRemote' do
   pod 'Folly', :podspec => '../node_modules/react-native/third-party-podspecs/Folly.podspec'
 
 
-  pod 'react-native-ble-plx', :path => '../node_modules/react-native-ble-plx'
 
   target 'RobotRemoteTests' do
     inherit! :search_paths

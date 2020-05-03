@@ -83,6 +83,7 @@ const App = () => {
 
       try {
         let scannedDevices = await BluetoothSerial.list();
+        let unpaired = await BluetoothSerial.discoverUnpairedDevices();
 
         // Set blank device names to their device id
         for (var dev of scannedDevices) {
