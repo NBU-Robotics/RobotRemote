@@ -111,10 +111,6 @@ const App = () => {
 
     enable();
 
-    BluetoothSerial.on('error', err => {
-      sendErrorMessage(err.message);
-    });
-
     return () => LocationServicesDialogBox.stopListener();
   }, [requestLocattionPermissions, requestLocation]);
 
