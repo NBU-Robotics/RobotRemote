@@ -83,22 +83,15 @@ const App = () => {
   }, []);
 
   useEffect(() => {
-    const requestServices = async () => {
-      await requestLocattionPermissions();
-      await requestLocation();
-
-      DeviceEventEmitter.addListener('locationProviderStatusChange', function(
-        status,
-      ) {
-        if (status.enabled) {
-          setLocationEnabled(true);
-        } else {
-          setLocationEnabled(false);
-        }
-      });
-    };
-
-    requestServices();
+    DeviceEventEmitter.addListener('locationProviderStatusChange', function(
+      status,
+    ) {
+      if (status.enabled) {
+        setLocationEnabled(true);
+      } else {
+        setLocationEnabled(false);
+      }
+    });
 
     const enable = async () => {
       try {
@@ -112,6 +105,15 @@ const App = () => {
     enable();
 
     return () => LocationServicesDialogBox.stopListener();
+  }, []);
+
+  useEffect(() => {
+    const requestServices = async () => {
+      await requestLocattionPermissions();
+      await requestLocation();
+    };
+
+    requestServices();
   }, [requestLocattionPermissions, requestLocation]);
 
   const disconnect = useCallback(async () => {
