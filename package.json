@@ -14,17 +14,18 @@
     "react": "16.9.0",
     "react-native": "^0.62.0",
     "react-native-android-location-services-dialog-box": "^2.8.2",
-    "react-native-bluetooth-serial": "git+https://github.com/chico/react-native-bluetooth-serial.git#v1.0.0-rc2"
+    "react-native-bluetooth-serial-next": "^1.2.3"
   },
   "devDependencies": {
     "@babel/core": "^7.6.2",
     "@babel/runtime": "^7.6.2",
     "@react-native-community/eslint-config": "^0.0.5",
     "babel-jest": "^24.9.0",
-    "eslint": "^6.5.1",
+    "eslint": "^6.8.0",
     "jest": "^24.9.0",
     "jetifier": "^1.6.5",
     "metro-react-native-babel-preset": "^0.56.0",
+    "prettier": "^2.0.5",
     "react-test-renderer": "16.9.0"
   },
   "jest": {
